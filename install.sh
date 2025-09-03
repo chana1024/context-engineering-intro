@@ -158,6 +158,9 @@ download_directory() {
         return
     fi
     
+    # Create destination directory only when we have files to download
+    mkdir -p "$dest_dir"
+    
     # Download each file
     while IFS= read -r file; do
         if [ -n "$file" ]; then
@@ -166,17 +169,6 @@ download_directory() {
         fi
     done <<< "$files"
 }
-
-# Create main .claude directory
-echo -e "${YELLOW}Creating .claude directory structure...${NC}"
-mkdir -p "$CLAUDE_DIR"
-
-# Create subdirectories
-mkdir -p "$CLAUDE_DIR/commands"
-mkdir -p "$CLAUDE_DIR/PRPs" 
-mkdir -p "$CLAUDE_DIR/tasks"
-
-echo -e "${GREEN}✓ Directory structure created${NC}"
 
 # Check if GitHub token is available
 if [ -n "${GITHUB_TOKEN:-}" ]; then
@@ -188,57 +180,59 @@ else
     echo "设置方法: export GITHUB_TOKEN=your_token_here"
 fi
 
-# Install commands
-echo -e "${YELLOW}Checking .claude/commands directory...${NC}"
-if [ -d ".claude/commands" ]; then
-    echo "使用本地 .claude/commands 目录"
+# 重要：在开始任何操作前，先验证GitHub API连接
+echo -e "\n${YELLOW}验证GitHub API连接...${NC}"
+echo "检查仓库访问权限..."
+
+# 测试仓库访问权限
+test_response=$(github_api_request "https://api.github.com/repos/$GITHUB_REPO" "测试仓库访问")
+
+if echo "$test_response" | grep -q '"type":"User"' || echo "$test_response" | grep -q '"type":"Organization"'; then
+    echo -e "${GREEN}✓ 仓库访问权限验证通过${NC}"
 else
-    echo "检查远程 .claude/commands 目录..."
-    local response
-    response=$(github_api_request "https://api.github.com/repos/$GITHUB_REPO/contents/.claude/commands?ref=$BRANCH" "检查commands目录")
-    
-    if echo "$response" | grep -q '"type":"dir"'; then
-        download_directory ".claude/commands"
-        # Make command files executable
-        chmod +x "$CLAUDE_DIR/commands"/*
-        echo -e "${GREEN}✓ Commands installed and made executable${NC}"
-    else
-        echo -e "${YELLOW}! No .claude/commands directory found in repository${NC}"
-    fi
+    echo -e "${RED}✗ 无法访问仓库或仓库不存在${NC}"
+    echo "请检查仓库名称和访问权限"
+    exit 1
+fi
+
+# 现在开始安装过程，只有在验证通过后才创建目录
+echo -e "\n${YELLOW}开始安装Claude Code组件...${NC}"
+
+# Install commands
+echo -e "${YELLOW}检查 .claude/commands 目录...${NC}"
+response=$(github_api_request "https://api.github.com/repos/$GITHUB_REPO/contents/.claude/commands?ref=$BRANCH" "检查commands目录")
+
+if echo "$response" | grep -q '"type":"dir"'; then
+    download_directory ".claude/commands"
+    # Make command files executable
+    chmod +x "$CLAUDE_DIR/commands"/*
+    echo -e "${GREEN}✓ Commands installed and made executable${NC}"
+else
+    echo -e "${YELLOW}! No .claude/commands directory found in repository${NC}"
 fi
 
 # Install PRPs
-echo -e "${YELLOW}Checking .claude/PRPs directory...${NC}"
-if [ -d ".claude/PRPs" ]; then
-    echo "使用本地 .claude/PRPs 目录"
+echo -e "${YELLOW}检查 .claude/PRPs 目录...${NC}"
+response=$(github_api_request "https://api.github.com/repos/$GITHUB_REPO/contents/.claude/PRPs?ref=$BRANCH" "检查PRPs目录")
+
+if echo "$response" | grep -q '"type":"dir"'; then
+    download_directory ".claude/PRPs"
+    echo -e "${GREEN}✓ PRPs installed${NC}"
 else
-    echo "检查远程 .claude/PRPs 目录..."
-    local response
-    response=$(github_api_request "https://api.github.com/repos/$GITHUB_REPO/contents/.claude/PRPs?ref=$BRANCH" "检查PRPs目录")
-    
-    if echo "$response" | grep -q '"type":"dir"'; then
-        download_directory ".claude/PRPs"
-        echo -e "${GREEN}✓ PRPs installed${NC}"
-    else
-        echo -e "${YELLOW}! No .claude/PRPs directory found in repository${NC}"
-    fi
+    echo -e "${YELLOW}! No .claude/PRPs directory found in repository${NC}"
 fi
 
 # Install task templates or examples
-echo -e "${YELLOW}Checking .claude/tasks directory...${NC}"
-if [ -d ".claude/tasks" ]; then
-    echo "使用本地 .claude/tasks 目录"
+echo -e "${YELLOW}检查 .claude/tasks 目录...${NC}"
+response=$(github_api_request "https://api.github.com/repos/$GITHUB_REPO/contents/.claude/tasks?ref=$BRANCH" "检查tasks目录")
+
+if echo "$response" | grep -q '"type":"dir"'; then
+    download_directory ".claude/tasks"
+    echo -e "${GREEN}✓ Task templates installed${NC}"
 else
-    echo "检查远程 .claude/tasks 目录..."
-    local response
-    response=$(github_api_request "https://api.github.com/repos/$GITHUB_REPO/contents/.claude/tasks?ref=$BRANCH" "检查tasks目录")
-    
-    if echo "$response" | grep -q '"type":"dir"'; then
-        download_directory ".claude/tasks"
-        echo -e "${GREEN}✓ Task templates installed${NC}"
-    else
-        echo -e "${YELLOW}! No .claude/tasks directory found in repository${NC}"
-        # Create a sample task file
+    echo -e "${YELLOW}! No .claude/tasks directory found in repository${NC}"
+    # Create a sample task file only if we successfully created the directory
+    if [ -d "$CLAUDE_DIR/tasks" ]; then
         cat > "$CLAUDE_DIR/tasks/README.md" << 'EOF'
 # Tasks Directory
 
@@ -270,8 +264,8 @@ EOF
     fi
 fi
 
-# Create example files if directories are empty
-if [ ! "$(ls -A "$CLAUDE_DIR/commands" 2>/dev/null)" ]; then
+# Create example files if directories are empty (only for successfully created directories)
+if [ -d "$CLAUDE_DIR/commands" ] && [ ! "$(ls -A "$CLAUDE_DIR/commands" 2>/dev/null)" ]; then
     cat > "$CLAUDE_DIR/commands/example" << 'EOF'
 #!/bin/bash
 # Example Claude Code command
@@ -284,7 +278,7 @@ EOF
     echo -e "${GREEN}✓ Created example command${NC}"
 fi
 
-if [ ! "$(ls -A "$CLAUDE_DIR/PRPs" 2>/dev/null)" ]; then
+if [ -d "$CLAUDE_DIR/PRPs" ] && [ ! "$(ls -A "$CLAUDE_DIR/PRPs" 2>/dev/null)" ]; then
     cat > "$CLAUDE_DIR/PRPs/example.md" << 'EOF'
 # Example PRP (Programmatic Request Pattern)
 

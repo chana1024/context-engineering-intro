@@ -4,6 +4,12 @@
 
 这个安装脚本会自动下载和设置Claude Code所需的目录结构和文件。脚本包含完整的错误处理机制，特别是针对GitHub API速率限制的处理。
 
+**重要特性：**
+- 遇到速率限制错误时**立即停止脚本**
+- **不会创建空的.claude目录**
+- **完全依赖远程仓库，不使用本地文件**
+- 在开始安装前验证GitHub API连接
+
 ## 基本用法
 
 ### 1. 直接运行
@@ -49,7 +55,7 @@ export GITHUB_TOKEN="ghp_your_token_here"
 
 ### 1. GitHub API速率限制错误
 
-当遇到以下错误时，脚本会自动停止并显示详细解决方案：
+当遇到以下错误时，脚本会**立即停止**并显示详细解决方案：
 
 ```
 "message":"API rate limit exceeded for 45.32.107.83. (But here's the good news: Authenticated requests get a higher rate limit. Check out the documentation for more details.)"
@@ -58,6 +64,11 @@ export GITHUB_TOKEN="ghp_your_token_here"
 **错误原因：**
 - 当前IP地址已达到GitHub API的请求限制
 - 未认证请求的速率限制较低（每小时60次）
+
+**处理方式：**
+- ✅ **立即停止脚本执行**
+- ✅ **不创建任何.claude目录**
+- ✅ **显示详细的错误信息和解决方案**
 
 **解决方案：**
 1. **等待重置**：通常1小时后自动重置
@@ -73,23 +84,44 @@ export GITHUB_TOKEN="ghp_your_token_here"
 ```
 "message":"Not Found"
 ```
-**解决方案：** 检查`GITHUB_REPO`和`BRANCH`设置
+**处理方式：** 立即停止脚本，检查`GITHUB_REPO`和`BRANCH`设置
 
 #### 无效的认证令牌
 ```
 "message":"Bad credentials"
 ```
-**解决方案：** 检查`GITHUB_TOKEN`环境变量设置
+**处理方式：** 立即停止脚本，检查`GITHUB_TOKEN`环境变量设置
+
+#### 仓库访问权限不足
+**处理方式：** 在开始安装前验证仓库访问权限，失败则停止脚本
+
+## 安装策略
+
+### 预验证机制
+- 在开始任何操作前验证GitHub API连接
+- 检查仓库访问权限
+- 只有验证通过后才开始安装过程
+
+### 目录创建策略
+- **只有在成功下载文件后才创建目录**
+- **不会预先创建空的.claude目录结构**
+- 避免创建无用的目录
+
+### 完全远程依赖
+- **完全依赖远程仓库**
+- **不使用本地已存在的文件**
+- 确保安装的是最新版本
+- 避免本地文件污染
 
 ## 目录结构
 
-安装完成后，脚本会在当前目录创建以下结构：
+只有在成功安装后，脚本才会创建以下结构：
 
 ```
 .claude/
-├── commands/     # 自定义命令
-├── PRPs/         # 程序化请求模式
-└── tasks/        # 任务跟踪文件
+├── commands/     # 自定义命令 (如果安装成功)
+├── PRPs/         # 程序化请求模式 (如果安装成功)
+└── tasks/        # 任务跟踪文件 (如果安装成功)
 ```
 
 ## 功能特性
@@ -98,16 +130,18 @@ export GITHUB_TOKEN="ghp_your_token_here"
 - 自动检测GitHub API速率限制
 - 识别认证和权限错误
 - 提供具体的解决方案
+- **遇到错误立即停止，不创建任何目录**
 
 ### 2. 认证支持
 - 支持GitHub个人访问令牌
 - 自动使用认证请求获得更高速率限制
 - 优雅降级到未认证模式
 
-### 3. 本地优先
-- 优先使用本地已存在的目录
-- 仅在需要时进行远程下载
-- 减少不必要的API调用
+### 3. 远程优先
+- **完全依赖远程仓库**
+- **不使用本地文件**
+- 确保安装最新版本
+- 避免本地文件污染
 
 ### 4. 详细日志
 - 彩色输出便于阅读
@@ -143,13 +177,19 @@ source ~/.bashrc  # 或 source ~/.zshrc
 **A:** 检查网络连接，考虑使用GitHub令牌提高速率限制
 
 #### Q: 某些文件下载失败
-**A:** 检查文件路径是否正确，确认仓库中存在该文件
+**A:** 脚本会立即停止，不会创建任何目录
 
 #### Q: 权限被拒绝
 **A:** 确保脚本有执行权限：`chmod +x install.sh`
 
 #### Q: curl命令未找到
 **A:** 安装curl：`sudo apt-get install curl` (Ubuntu/Debian) 或 `sudo yum install curl` (CentOS/RHEL)
+
+#### Q: 遇到速率限制怎么办
+**A:** 
+1. 等待1小时后重试
+2. 设置GitHub令牌：`export GITHUB_TOKEN=your_token_here`
+3. 使用VPN或更换网络环境
 
 ### 获取帮助
 
@@ -162,6 +202,7 @@ source ~/.bashrc  # 或 source ~/.zshrc
 
 ## 更新日志
 
+- **v3.0**: 遇到错误立即停止，不创建空目录，不使用本地文件，预验证机制
 - **v2.0**: 添加完整的错误处理机制
 - **v1.0**: 基础安装功能
 

@@ -26,7 +26,7 @@ The AI agent only gets the context you are appending to the PRP and training dat
 
 ## PRP Generation
 
-Using PRPs/templates/prp_base.md as template:
+Using .claude/PRPs/templates/prp_base.md as template:
 
 ### Critical Context to Include and pass to the AI agent as part of the PRP
 - **Documentation**: URLs with specific sections
@@ -55,7 +55,7 @@ uv run pytest tests/ -v
 *** ULTRATHINK ABOUT THE PRP AND PLAN YOUR APPROACH THEN START WRITING THE PRP ***
 
 ## Output
-Save as: `PRPs/{feature-name}.md`
+Save as: `.claude/PRPs/{feature-name}.md`
 
 ## Quality Checklist
 - [ ] All necessary context included

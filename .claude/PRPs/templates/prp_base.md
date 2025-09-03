@@ -42,7 +42,7 @@ Template optimized for AI agents to implement features with sufficient context a
   section: [Specific section about common pitfalls]
   critical: [Key insight that prevents common errors]
 
-- docfile: [PRPs/ai_docs/file.md]
+- docfile: [.claude/PRPs/ai_docs/file.md]
   why: [docs that the user has pasted in to the project]
 
 ```

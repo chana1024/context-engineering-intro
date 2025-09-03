@@ -73,7 +73,7 @@ A CLI-based application where:
 │   │   ├── providers.py
 │   │   └── ...
 │   └── cli.py
-├── PRPs/
+├── .claude/PRPs/
 │   └── templates/
 │       └── prp_base.md
 ├── INITIAL.md

@@ -21,7 +21,7 @@ echo "================================"
 # Use current directory instead of home
 echo "Installing to: $(pwd)/.claude"
 
-CLAUDE_DIR="$(pwd)/.claude"
+PROJECT_DIR="$(pwd)"
 
 # Function to make GitHub API request with error handling
 github_api_request() {
@@ -144,7 +144,7 @@ download_file() {
 # Function to download directory contents
 download_directory() {
     local dir_name="$1"
-    local dest_dir="$CLAUDE_DIR/$dir_name"
+    local dest_dir="$PROJECT_DIR/$dir_name"
     
     echo -e "${YELLOW}Installing $dir_name...${NC}"
     

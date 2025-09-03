@@ -180,124 +180,23 @@ else
     echo "设置方法: export GITHUB_TOKEN=your_token_here"
 fi
 
-# 重要：在开始任何操作前，先验证GitHub API连接
-echo -e "\n${YELLOW}验证GitHub API连接...${NC}"
-echo "检查仓库访问权限..."
-
-# 测试仓库访问权限
-test_response=$(github_api_request "https://api.github.com/repos/$GITHUB_REPO" "测试仓库访问")
-
-if echo "$test_response" | grep -q '"type":"User"' || echo "$test_response" | grep -q '"type":"Organization"'; then
-    echo -e "${GREEN}✓ 仓库访问权限验证通过${NC}"
-else
-    echo -e "${RED}✗ 无法访问仓库或仓库不存在${NC}"
-    echo "请检查仓库名称和访问权限"
-    exit 1
-fi
-
-# 现在开始安装过程，只有在验证通过后才创建目录
+# 开始安装过程
 echo -e "\n${YELLOW}开始安装Claude Code组件...${NC}"
 
 # Install commands
 echo -e "${YELLOW}检查 .claude/commands 目录...${NC}"
-response=$(github_api_request "https://api.github.com/repos/$GITHUB_REPO/contents/.claude/commands?ref=$BRANCH" "检查commands目录")
-
-if echo "$response" | grep -q '"type":"dir"'; then
-    download_directory ".claude/commands"
-    # Make command files executable
-    chmod +x "$CLAUDE_DIR/commands"/*
-    echo -e "${GREEN}✓ Commands installed and made executable${NC}"
-else
-    echo -e "${YELLOW}! No .claude/commands directory found in repository${NC}"
-fi
+download_directory ".claude/commands"
+echo -e "${GREEN}✓ Commands installed${NC}"
 
 # Install PRPs
 echo -e "${YELLOW}检查 .claude/PRPs 目录...${NC}"
-response=$(github_api_request "https://api.github.com/repos/$GITHUB_REPO/contents/.claude/PRPs?ref=$BRANCH" "检查PRPs目录")
-
-if echo "$response" | grep -q '"type":"dir"'; then
-    download_directory ".claude/PRPs"
-    echo -e "${GREEN}✓ PRPs installed${NC}"
-else
-    echo -e "${YELLOW}! No .claude/PRPs directory found in repository${NC}"
-fi
+download_directory ".claude/PRPs"
+echo -e "${GREEN}✓ PRPs installed${NC}"
 
 # Install task templates or examples
 echo -e "${YELLOW}检查 .claude/tasks 目录...${NC}"
-response=$(github_api_request "https://api.github.com/repos/$GITHUB_REPO/contents/.claude/tasks?ref=$BRANCH" "检查tasks目录")
-
-if echo "$response" | grep -q '"type":"dir"'; then
-    download_directory ".claude/tasks"
-    echo -e "${GREEN}✓ Task templates installed${NC}"
-else
-    echo -e "${YELLOW}! No .claude/tasks directory found in repository${NC}"
-    # Create a sample task file only if we successfully created the directory
-    if [ -d "$CLAUDE_DIR/tasks" ]; then
-        cat > "$CLAUDE_DIR/tasks/README.md" << 'EOF'
-# Tasks Directory
-
-This directory contains task files for tracking multi-PR development work.
-
-## Usage
-
-Create task files with format: `YYYY-MM-DD-task-name.md`
-
-Example structure:
-```markdown
-# 2025-01-15-feature-implementation.md
-
-## Progress
-- ✅ PR 1: Foundation Setup
-- 🔄 PR 2: Core Implementation (in review)
-- ⏳ PR 3: Testing & Documentation
-
-## Key Decisions
-- Using async approach for better performance
-- Behavioral tests instead of implementation tests
-
-## Next Steps
-- Complete PR 2 review feedback
-- Add integration tests in PR 3
-```
-EOF
-        echo -e "${GREEN}✓ Created task directory with README${NC}"
-    fi
-fi
-
-# Create example files if directories are empty (only for successfully created directories)
-if [ -d "$CLAUDE_DIR/commands" ] && [ ! "$(ls -A "$CLAUDE_DIR/commands" 2>/dev/null)" ]; then
-    cat > "$CLAUDE_DIR/commands/example" << 'EOF'
-#!/bin/bash
-# Example Claude Code command
-# Usage: /example [message]
-
-MESSAGE="${1:-Hello from Claude Code!}"
-echo "Example command executed: $MESSAGE"
-EOF
-    chmod +x "$CLAUDE_DIR/commands/example"
-    echo -e "${GREEN}✓ Created example command${NC}"
-fi
-
-if [ -d "$CLAUDE_DIR/PRPs" ] && [ ! "$(ls -A "$CLAUDE_DIR/PRPs" 2>/dev/null)" ]; then
-    cat > "$CLAUDE_DIR/PRPs/example.md" << 'EOF'
-# Example PRP (Programmatic Request Pattern)
-
-This is an example PRP file that demonstrates the structure.
-
-## Usage
-Copy this pattern and modify for your specific use case.
-
-## Pattern
-```
-Analyze the codebase and suggest improvements for:
-1. Performance optimization
-2. Code organization  
-3. Testing coverage
-4. Documentation gaps
-```
-EOF
-    echo -e "${GREEN}✓ Created example PRP${NC}"
-fi
+download_directory ".claude/tasks"
+echo -e "${GREEN}✓ Task templates installed${NC}"
 
 # Final verification
 echo ""

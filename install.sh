@@ -23,52 +23,9 @@ echo "Installing to: $(pwd)/.claude"
 
 CLAUDE_DIR="$(pwd)/.claude"
 
-# Function to check for GitHub API rate limit errors
-check_rate_limit() {
-    local response="$1"
-    local operation="$2"
-    
-    if echo "$response" | grep -q '"message":"API rate limit exceeded'; then
-        echo -e "${RED}❌ GitHub API Rate Limit Exceeded${NC}"
-        echo ""
-        echo "错误原因: GitHub API 速率限制已超出"
-        echo "当前IP地址已达到GitHub API的请求限制"
-        echo ""
-        echo "解决方案:"
-        echo "1. 等待一段时间后重试 (通常1小时后重置)"
-        echo "2. 使用GitHub认证令牌获得更高的速率限制:"
-        echo "   - 创建个人访问令牌: https://github.com/settings/tokens"
-        echo "   - 设置环境变量: export GITHUB_TOKEN=your_token_here"
-        echo "   - 重新运行脚本"
-        echo "3. 使用VPN或更换网络环境"
-        echo ""
-        echo "详细信息: https://docs.github.com/rest/overview/resources-in-the-rest-api#rate-limiting"
-        echo ""
-        echo "脚本已停止运行。"
-        exit 1
-    fi
-    
-    # Check for other common GitHub API errors
-    if echo "$response" | grep -q '"message":"Not Found"'; then
-        echo -e "${RED}❌ Repository or directory not found${NC}"
-        echo "错误原因: 仓库或目录不存在"
-        echo "请检查 GITHUB_REPO 和 BRANCH 设置是否正确"
-        exit 1
-    fi
-    
-    if echo "$response" | grep -q '"message":"Bad credentials"'; then
-        echo -e "${RED}❌ Invalid GitHub token${NC}"
-        echo "错误原因: GitHub认证令牌无效"
-        echo "请检查 GITHUB_TOKEN 环境变量设置"
-        exit 1
-    fi
-}
-
 # Function to make GitHub API request with error handling
 github_api_request() {
     local url="$1"
-    local operation="$2"
-    
     local headers=""
     if [ -n "${GITHUB_TOKEN:-}" ]; then
         headers="-H \"Authorization: token $GITHUB_TOKEN\""
@@ -81,11 +38,60 @@ github_api_request() {
         echo -e "${RED}Error: curl required for GitHub API access${NC}"
         exit 1
     fi
-    
-    # Check for rate limit and other errors
-    check_rate_limit "$response" "$operation"
-    
     echo "$response"
+}
+
+# Function to check GitHub API rate limit status upfront
+check_github_api_status() {
+    echo -e "${YELLOW}检查GitHub API状态...${NC}"
+    
+    # Make a simple API call to check rate limit status
+    local api_url="https://api.github.com/rate_limit"
+    local response
+    
+    if command -v curl >/dev/null 2>&1; then
+        local headers=""
+        if [ -n "${GITHUB_TOKEN:-}" ]; then
+            headers="-H \"Authorization: token $GITHUB_TOKEN\""
+        fi
+        
+        response=$(curl -sSL $headers "$api_url" 2>&1)
+    else
+        echo -e "${RED}Error: curl required for GitHub API access${NC}"
+        exit 1
+    fi
+    
+    # Parse rate limit information
+    local remaining_requests
+    local reset_time
+    
+    if [ -n "${GITHUB_TOKEN:-}" ]; then
+        # Authenticated requests
+        remaining_requests=$(echo "$response" | grep '"remaining"' | head -1 | cut -d ':' -f 2 | tr -d ' ,')
+        reset_time=$(echo "$response" | grep '"reset"' | head -1 | cut -d ':' -f 2 | tr -d ' ,')
+    else
+        # Unauthenticated requests
+        remaining_requests=$(echo "$response" | grep '"remaining"' | tail -1 | cut -d ':' -f 2 | tr -d ' ,')
+        reset_time=$(echo "$response" | grep '"reset"' | tail -1 | cut -d ':' -f 2 | tr -d ' ,')
+    fi
+    
+    if [ -n "$remaining_requests" ] && [ "$remaining_requests" -gt 0 ]; then
+        echo -e "${GREEN}✓ GitHub API可用，剩余请求次数: $remaining_requests${NC}"
+        if [ -n "$reset_time" ]; then
+            local reset_date=$(date -d "@$reset_time" '+%Y-%m-%d %H:%M:%S')
+            echo "速率限制重置时间: $reset_date"
+        fi
+    else
+        echo -e "${RED}❌ GitHub API请求次数已用完${NC}"
+        if [ -n "$reset_time" ]; then
+            local reset_date=$(date -d "@$reset_time" '+%Y-%m-%d %H:%M:%S')
+            echo "速率限制重置时间: $reset_date"
+        fi
+        echo "请等待重置后重试，或设置GITHUB_TOKEN获得更高限制"
+        exit 1
+    fi
+    
+    echo ""
 }
 
 # Function to download file from GitHub
@@ -147,7 +153,7 @@ download_directory() {
     
     # Get list of files in directory with error handling
     local response
-    response=$(github_api_request "$api_url" "获取目录内容")
+    response=$(github_api_request "$api_url")
     
     # Extract file names from response
     local files
@@ -179,6 +185,11 @@ else
     echo "建议设置GITHUB_TOKEN环境变量以获得更高的API速率限制"
     echo "设置方法: export GITHUB_TOKEN=your_token_here"
 fi
+
+echo ""
+
+# 在开始安装之前先检查GitHub API状态
+check_github_api_status
 
 # 开始安装过程
 echo -e "\n${YELLOW}开始安装Claude Code组件...${NC}"
@@ -213,4 +224,3 @@ echo "2. Customize commands and PRPs for your workflow"
 echo "3. Start using /commands in Claude Code"
 echo ""
 echo -e "${YELLOW}Tip: Use GITHUB_REPO=owner/repo ./install.sh to install from a different repository${NC}"
-echo -e "${YELLOW}Tip: Set GITHUB_TOKEN for higher API rate limits${NC}"
